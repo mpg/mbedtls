@@ -510,16 +510,15 @@ make
 msg "test: !MBEDTLS_SSL_RENEGOTIATION - ssl-opt.sh (ASan build)" # ~ 6 min
 if_build_succeeded tests/ssl-opt.sh
 
-msg "build: cmake, full config, clang, C99" # ~ 50s
+msg "build: make, full config, clang" # ~ 50s
 cleanup
 cp "$CONFIG_H" "$CONFIG_BAK"
 scripts/config.pl full
 scripts/config.pl unset MBEDTLS_MEMORY_BACKTRACE # too slow for tests
-CC=clang cmake -D CMAKE_BUILD_TYPE:String=Check -D ENABLE_TESTING=On .
-make CFLAGS='-Werror -Wall -Wextra -std=c99 -pedantic'
+make CC='clang' CFLAGS='-Werror -Wall -Wextra -Os'
 
 msg "test: main suites (full config)" # ~ 5s
-make CFLAGS='-Werror -Wall -Wextra' test
+make test
 
 # test things not in the default config, and Default handshake for parameters choice
 msg "test: ssl-opt.sh (full config)" # ~ 1s
