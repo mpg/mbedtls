@@ -702,15 +702,11 @@ make test
 
 msg "build: Windows cross build - mingw64, make (Link Library)" # ~ 30s
 cleanup
-make CC=i686-w64-mingw32-gcc AR=i686-w64-mingw32-ar LD=i686-w64-minggw32-ld CFLAGS='-Werror -O1' WINDOWS_BUILD=1 lib programs
-
-# note Make tests only builds the tests, but doesn't run them
-make CC=i686-w64-mingw32-gcc AR=i686-w64-mingw32-ar LD=i686-w64-minggw32-ld CFLAGS='-Werror -O1' WINDOWS_BUILD=1 tests
+make CC=i686-w64-mingw32-gcc AR=i686-w64-mingw32-ar LD=i686-w64-minggw32-ld CFLAGS='-Werror -O1' WINDOWS_BUILD=1
 make WINDOWS_BUILD=1 clean
 
 msg "build: Windows cross build - mingw64, make (DLL)" # ~ 30s
-make CC=i686-w64-mingw32-gcc AR=i686-w64-mingw32-ar LD=i686-w64-minggw32-ld CFLAGS='-Werror -O1' WINDOWS_BUILD=1 SHARED=1 lib programs
-make CC=i686-w64-mingw32-gcc AR=i686-w64-mingw32-ar LD=i686-w64-minggw32-ld CFLAGS='-Werror -O1' WINDOWS_BUILD=1 SHARED=1 tests
+make CC=i686-w64-mingw32-gcc AR=i686-w64-mingw32-ar LD=i686-w64-minggw32-ld CFLAGS='-Werror -O1' WINDOWS_BUILD=1 SHARED=1
 make WINDOWS_BUILD=1 clean
 
 # 3.3 Misc targets
