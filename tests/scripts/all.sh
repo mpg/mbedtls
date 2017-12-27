@@ -511,18 +511,20 @@ if_build_succeeded env OPENSSL_CMD="$OPENSSL_LEGACY" tests/compat.sh -m 'ssl3' -
 # 2.1 Various configs: scripted
 ###############################
 
-msg "test/build: ref-configs (ASan build)" # ~ 6 min 20s
-if_build_succeeded tests/scripts/test-ref-configs.pl
-
-msg "test/build: curves.pl (gcc)" # ~ 4 min
-cleanup
-cmake -D CMAKE_BUILD_TYPE:String=Debug .
-if_build_succeeded tests/scripts/curves.pl
-
-msg "test/build: key-exchanges (gcc)" # ~ 1 min
+msg "build+test: ref-configs (ASan build)" # ~ 6 min 20s
 cleanup
 cmake -D CMAKE_BUILD_TYPE:String=Check .
-if_build_succeeded tests/scripts/key-exchanges.pl
+record_status tests/scripts/test-ref-configs.pl
+
+msg "build+test: curves.pl (gcc)" # ~ 4 min
+cleanup
+cmake -D CMAKE_BUILD_TYPE:String=Check .
+record_status tests/scripts/curves.pl
+
+msg "build+test: key-exchanges (gcc)" # ~ 1 min
+cleanup
+cmake -D CMAKE_BUILD_TYPE:String=Check .
+record_status tests/scripts/key-exchanges.pl
 
 # 2.2 Various configs: SSL build options
 ########################################
@@ -765,7 +767,7 @@ make CC=gcc CFLAGS='-Werror -Os'
 
 
 if uname -a | grep -F Linux >/dev/null; then
-    msg "build/test: make shared" # ~ 40s
+    msg "build+test: make shared" # ~ 40s
     cleanup
     make SHARED=1 all check
 fi
