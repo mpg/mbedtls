@@ -174,6 +174,8 @@ fatal_signal () {
 trap 'fatal_signal HUP' HUP
 trap 'fatal_signal INT' INT
 trap 'fatal_signal TERM' TERM
+# EXIT covers the case where we abort because of set -e
+trap 'fatal_signal 0' EXIT
 
 msg()
 {
@@ -812,3 +814,6 @@ msg "Done, cleaning up"
 cleanup
 
 final_report
+
+# avoid "Killed by SIG0" message on normal exit
+trap - EXIT
