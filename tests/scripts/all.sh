@@ -55,9 +55,10 @@
 # Notes for maintainers
 # ---------------------
 #
-# The tests are roughly in order from fastest to slowest. This doesn't
-# have to be exact, but in general you should add slower tests towards
-# the end and fast checks near the beginning.
+# The tests are grouped by section: basic tests, config, target...
+# In each section, in general you should add slower tests towards
+# the end and fast checks near the beginning.  Indicative running
+# times are given for reference (measured on the developer's machine).
 #
 # Sanity checks have the following form:
 #   1. msg "short description of what is about to be done"
@@ -431,19 +432,8 @@ fi
 
 
 ################################################################
-#### Basic checks
+#### 0. Quick sanity checks
 ################################################################
-
-#
-# Test Suites to be executed
-#
-# The test ordering tries to optimize for the following criteria:
-# 1. Catch possible problems early, by running first tests that run quickly
-#    and/or are more likely to fail than others (eg I use Clang most of the
-#    time, so start with a GCC build).
-# 2. Minimize total running time, by avoiding useless rebuilds
-#
-# Indicative running times are given for reference.
 
 msg "info: output_env.sh"
 OPENSSL="$OPENSSL" OPENSSL_LEGACY="$OPENSSL_LEGACY" GNUTLS_CLI="$GNUTLS_CLI" \
@@ -471,16 +461,11 @@ tests/scripts/doxygen.sh
 
 
 ################################################################
-#### Build and test many configurations and targets
+#### 1 Basic tests
 ################################################################
 
-if [ $RUN_ARMCC -ne 0 ] && [ $YOTTA -ne 0 ]; then
-    # Note - use of yotta is deprecated, and yotta also requires armcc to be on the
-    # path, and uses whatever version of armcc it finds there.
-    msg "build: create and build yotta module" # ~ 30s
-    cleanup
-    record_status tests/scripts/yotta-build.sh
-fi
+# 1.1 Basic tests: default config
+#################################
 
 msg "build: cmake, gcc, ASan" # ~ 1 min 50s
 cleanup
@@ -493,24 +478,11 @@ make test
 msg "test: ssl-opt.sh (ASan build)" # ~ 1 min
 if_build_succeeded tests/ssl-opt.sh
 
-msg "test/build: ref-configs (ASan build)" # ~ 6 min 20s
-if_build_succeeded tests/scripts/test-ref-configs.pl
-
-msg "build: with ASan (rebuild after ref-configs)" # ~ 1 min
-make
-
 msg "test: compat.sh (ASan build)" # ~ 6 min
 if_build_succeeded tests/compat.sh
 
-msg "build: Default + !MBEDTLS_SSL_RENEGOTIATION (ASan build)" # ~ 6 min
-cleanup
-cp "$CONFIG_H" "$CONFIG_BAK"
-scripts/config.pl unset MBEDTLS_SSL_RENEGOTIATION
-CC=gcc cmake -D CMAKE_BUILD_TYPE:String=Asan .
-make
-
-msg "test: !MBEDTLS_SSL_RENEGOTIATION - ssl-opt.sh (ASan build)" # ~ 6 min
-if_build_succeeded tests/ssl-opt.sh
+# 1.2 Basic tests: full config
+##############################
 
 msg "build: make, full config, clang" # ~ 50s
 cleanup
@@ -530,6 +502,18 @@ msg "test: compat.sh SSLv3, RC4, DES & NULL (full config)" # ~ 2 min
 if_build_succeeded env OPENSSL_CMD="$OPENSSL_LEGACY" GNUTLS_CLI="$GNUTLS_LEGACY_CLI" GNUTLS_SERV="$GNUTLS_LEGACY_SERV" tests/compat.sh -e '3DES\|DES-CBC3' -f 'NULL\|DES\|RC4\|ARCFOUR'
 if_build_succeeded env OPENSSL_CMD="$OPENSSL_LEGACY" tests/compat.sh -m 'ssl3' -e ''
 
+
+
+################################################################
+#### 2. Various configurations (default target)
+################################################################
+
+# 2.1 Various configs: scripted
+###############################
+
+msg "test/build: ref-configs (ASan build)" # ~ 6 min 20s
+if_build_succeeded tests/scripts/test-ref-configs.pl
+
 msg "test/build: curves.pl (gcc)" # ~ 4 min
 cleanup
 cmake -D CMAKE_BUILD_TYPE:String=Debug .
@@ -540,9 +524,58 @@ cleanup
 cmake -D CMAKE_BUILD_TYPE:String=Check .
 if_build_succeeded tests/scripts/key-exchanges.pl
 
-msg "build: Unix make, -Os (gcc)" # ~ 30s
+# 2.2 Various configs: SSL build options
+########################################
+
+msg "build: full config except ssl_srv.c, make, gcc" # ~ 30s
 cleanup
-make CC=gcc CFLAGS='-Werror -Os'
+cp "$CONFIG_H" "$CONFIG_BAK"
+scripts/config.pl full
+scripts/config.pl unset MBEDTLS_SSL_SRV_C
+make CC=gcc CFLAGS='-Werror -O1'
+
+msg "build: full config except ssl_cli.c, make, gcc" # ~ 30s
+cleanup
+cp "$CONFIG_H" "$CONFIG_BAK"
+scripts/config.pl full
+scripts/config.pl unset MBEDTLS_SSL_CLI_C
+make CC=gcc CFLAGS='-Werror -O1'
+
+
+msg "build: default config except MFL extension (ASan build)" # ~ 30s
+cleanup
+cp "$CONFIG_H" "$CONFIG_BAK"
+scripts/config.pl unset MBEDTLS_SSL_MAX_FRAGMENT_LENGTH
+CC=gcc cmake -D CMAKE_BUILD_TYPE:String=Asan .
+make
+
+msg "test: ssl-opt.sh, MFL-related tests"
+if_build_succeeded tests/ssl-opt.sh -f "Max fragment length"
+
+
+msg "build: Default + !MBEDTLS_SSL_RENEGOTIATION (ASan build)" # ~ 6 min
+cleanup
+cp "$CONFIG_H" "$CONFIG_BAK"
+scripts/config.pl unset MBEDTLS_SSL_RENEGOTIATION
+CC=gcc cmake -D CMAKE_BUILD_TYPE:String=Asan .
+make
+
+msg "test: !MBEDTLS_SSL_RENEGOTIATION - ssl-opt.sh (ASan build)" # ~ 6 min
+if_build_succeeded tests/ssl-opt.sh
+
+
+msg "build: allow SHA1 in certificates by default"
+cleanup
+cp "$CONFIG_H" "$CONFIG_BAK"
+scripts/config.pl set MBEDTLS_TLS_DEFAULT_ALLOW_SHA1_IN_CERTIFICATES
+make CFLAGS='-Werror -O1'
+
+msg "test: allow SHA1 in certificates by default"
+make test
+if_build_succeeded tests/ssl-opt.sh -f SHA-1
+
+# 2.3 Various configs: misc
+###########################
 
 # Full configuration build, without platform support, file IO and net sockets.
 # This should catch missing mbedtls_printf definitions, and by disabling file
@@ -575,20 +608,6 @@ scripts/config.pl set MBEDTLS_PLATFORM_NO_STD_FUNCTIONS
 scripts/config.pl unset MBEDTLS_ENTROPY_NV_SEED
 make CC=gcc CFLAGS='-Werror -O1'
 
-msg "build: full config except ssl_srv.c, make, gcc" # ~ 30s
-cleanup
-cp "$CONFIG_H" "$CONFIG_BAK"
-scripts/config.pl full
-scripts/config.pl unset MBEDTLS_SSL_SRV_C
-make CC=gcc CFLAGS='-Werror -O1'
-
-msg "build: full config except ssl_cli.c, make, gcc" # ~ 30s
-cleanup
-cp "$CONFIG_H" "$CONFIG_BAK"
-scripts/config.pl full
-scripts/config.pl unset MBEDTLS_SSL_CLI_C
-make CC=gcc CFLAGS='-Werror -O1'
-
 # Note, C99 compliance can only be tested with the sockets support disabled,
 # as that requires a POSIX platform (which isn't the same as C99).
 # We could use -D_DEFAULT_SOURCE here too, but without it we can make sure our
@@ -601,15 +620,6 @@ scripts/config.pl unset MBEDTLS_NET_C # getaddrinfo() undeclared, etc.
 scripts/config.pl set MBEDTLS_NO_PLATFORM_ENTROPY # uses syscall() on GNU/Linux
 make CC=gcc CFLAGS='-Werror -O1 -std=c99 -pedantic' lib
 
-msg "build: default config except MFL extension (ASan build)" # ~ 30s
-cleanup
-cp "$CONFIG_H" "$CONFIG_BAK"
-scripts/config.pl unset MBEDTLS_SSL_MAX_FRAGMENT_LENGTH
-CC=gcc cmake -D CMAKE_BUILD_TYPE:String=Asan .
-make
-
-msg "test: ssl-opt.sh, MFL-related tests"
-if_build_succeeded tests/ssl-opt.sh -f "Max fragment length"
 
 msg "build: default config with  MBEDTLS_TEST_NULL_ENTROPY (ASan build)"
 cleanup
@@ -626,49 +636,14 @@ make
 msg "test: MBEDTLS_TEST_NULL_ENTROPY - main suites (inc. selftests) (ASan build)"
 make test
 
-if uname -a | grep -F Linux >/dev/null; then
-    msg "build/test: make shared" # ~ 40s
-    cleanup
-    make SHARED=1 all check
-fi
 
-if uname -a | grep -F x86_64 >/dev/null; then
-    msg "build: i386, make, gcc" # ~ 30s
-    cleanup
-    make CC=gcc CFLAGS='-Werror -O1 -m32'
 
-    msg "test: i386, make, gcc"
-    make test
+################################################################
+#### 3. Various targets (adapted config)
+################################################################
 
-    msg "build: 64-bit ILP32, make, gcc" # ~ 30s
-    cleanup
-    make CC=gcc CFLAGS='-Werror -O1 -mx32'
-
-    msg "test: 64-bit ILP32, make, gcc"
-    make test
-fi # x86_64
-
-msg "build: gcc, force 32-bit bignum limbs"
-cleanup
-cp "$CONFIG_H" "$CONFIG_BAK"
-scripts/config.pl unset MBEDTLS_HAVE_ASM
-scripts/config.pl unset MBEDTLS_AESNI_C
-scripts/config.pl unset MBEDTLS_PADLOCK_C
-make CC=gcc CFLAGS='-Werror -O1 -DMBEDTLS_HAVE_INT32'
-
-msg "test: gcc, force 32-bit bignum limbs"
-make test
-
-msg "build: gcc, force 64-bit bignum limbs"
-cleanup
-cp "$CONFIG_H" "$CONFIG_BAK"
-scripts/config.pl unset MBEDTLS_HAVE_ASM
-scripts/config.pl unset MBEDTLS_AESNI_C
-scripts/config.pl unset MBEDTLS_PADLOCK_C
-make CC=gcc CFLAGS='-Werror -O1 -DMBEDTLS_HAVE_INT64'
-
-msg "test: gcc, force 64-bit bignum limbs"
-make test
+# 3.1 ARM targets
+#################
 
 msg "build: arm-none-eabi-gcc, make" # ~ 10s
 cleanup
@@ -710,14 +685,8 @@ if [ $RUN_ARMCC -ne 0 ]; then
     armc6_build_test "--target=aarch64-arm-none-eabi -march=armv8.2-a"
 fi
 
-msg "build: allow SHA1 in certificates by default"
-cleanup
-cp "$CONFIG_H" "$CONFIG_BAK"
-scripts/config.pl set MBEDTLS_TLS_DEFAULT_ALLOW_SHA1_IN_CERTIFICATES
-make CFLAGS='-Werror -O1'
-msg "test: allow SHA1 in certificates by default"
-make test
-if_build_succeeded tests/ssl-opt.sh -f SHA-1
+# 3.2 Windows targets
+#####################
 
 msg "build: Default + MBEDTLS_RSA_NO_CRT (ASan build)" # ~ 6 min
 cleanup
@@ -741,6 +710,94 @@ msg "build: Windows cross build - mingw64, make (DLL)" # ~ 30s
 make CC=i686-w64-mingw32-gcc AR=i686-w64-mingw32-ar LD=i686-w64-minggw32-ld CFLAGS='-Werror -O1' WINDOWS_BUILD=1 SHARED=1 lib programs
 make CC=i686-w64-mingw32-gcc AR=i686-w64-mingw32-ar LD=i686-w64-minggw32-ld CFLAGS='-Werror -O1' WINDOWS_BUILD=1 SHARED=1 tests
 make WINDOWS_BUILD=1 clean
+
+# 3.3 Misc targets
+##################
+
+# (mix of target and compile options related to the targed)
+if uname -a | grep -F x86_64 >/dev/null; then
+    msg "build: i386, make, gcc" # ~ 30s
+    cleanup
+    make CC=gcc CFLAGS='-Werror -O1 -m32'
+
+    msg "test: i386, make, gcc"
+    make test
+
+    msg "build: 64-bit ILP32, make, gcc" # ~ 30s
+    cleanup
+    make CC=gcc CFLAGS='-Werror -O1 -mx32'
+
+    msg "test: 64-bit ILP32, make, gcc"
+    make test
+fi # x86_64
+
+msg "build: gcc, force 32-bit bignum limbs"
+cleanup
+cp "$CONFIG_H" "$CONFIG_BAK"
+scripts/config.pl unset MBEDTLS_HAVE_ASM
+scripts/config.pl unset MBEDTLS_AESNI_C
+scripts/config.pl unset MBEDTLS_PADLOCK_C
+make CC=gcc CFLAGS='-Werror -O1 -DMBEDTLS_HAVE_INT32'
+
+msg "test: gcc, force 32-bit bignum limbs"
+make test
+
+msg "build: gcc, force 64-bit bignum limbs"
+cleanup
+cp "$CONFIG_H" "$CONFIG_BAK"
+scripts/config.pl unset MBEDTLS_HAVE_ASM
+scripts/config.pl unset MBEDTLS_AESNI_C
+scripts/config.pl unset MBEDTLS_PADLOCK_C
+make CC=gcc CFLAGS='-Werror -O1 -DMBEDTLS_HAVE_INT64'
+
+msg "test: gcc, force 64-bit bignum limbs"
+make test
+
+
+
+################################################################
+#### 4. Build systems
+################################################################
+
+msg "build: Unix make, -Os (gcc)" # ~ 30s
+cleanup
+make CC=gcc CFLAGS='-Werror -Os'
+
+
+if uname -a | grep -F Linux >/dev/null; then
+    msg "build/test: make shared" # ~ 40s
+    cleanup
+    make SHARED=1 all check
+fi
+
+
+msg "build: cmake 'out-of-source' build"
+cleanup
+MBEDTLS_ROOT_DIR="$PWD"
+mkdir "$OUT_OF_SOURCE_DIR"
+cd "$OUT_OF_SOURCE_DIR"
+cmake "$MBEDTLS_ROOT_DIR"
+make
+
+msg "test: cmake 'out-of-source' build"
+make test
+cd "$MBEDTLS_ROOT_DIR"
+rm -rf "$OUT_OF_SOURCE_DIR"
+
+
+if [ $RUN_ARMCC -ne 0 ] && [ $YOTTA -ne 0 ]; then
+    # Note - use of yotta is deprecated, and yotta also requires armcc to be on the
+    # path, and uses whatever version of armcc it finds there.
+    msg "build: create and build yotta module" # ~ 30s
+    cleanup
+    record_status tests/scripts/yotta-build.sh
+fi
+
+
+
+################################################################
+#### 5. Slow outside Linux-x86_64: MemSan or memcheck
+################################################################
 
 # MemSan currently only available on Linux 64 bits
 if uname -a | grep 'Linux.*x86_64' >/dev/null; then
@@ -776,7 +833,7 @@ else # no MemSan
     make memcheck
 
     # Optional part(s)
-    # Currently broken, programs don't seem to receive signals
+    # Currently broken on OS X: programs don't seem to receive signals
     # under valgrind on OS X
 
     if [ "$MEMORY" -gt 0 ]; then
@@ -790,19 +847,6 @@ else # no MemSan
     fi
 
 fi # MemSan
-
-msg "build: cmake 'out-of-source' build"
-cleanup
-MBEDTLS_ROOT_DIR="$PWD"
-mkdir "$OUT_OF_SOURCE_DIR"
-cd "$OUT_OF_SOURCE_DIR"
-cmake "$MBEDTLS_ROOT_DIR"
-make
-
-msg "test: cmake 'out-of-source' build"
-make test
-cd "$MBEDTLS_ROOT_DIR"
-rm -rf "$OUT_OF_SOURCE_DIR"
 
 
 
