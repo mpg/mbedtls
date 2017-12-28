@@ -747,11 +747,6 @@ make test
 #### 4. Build systems
 ################################################################
 
-msg "build: Unix make, -Os (gcc)" # ~ 20s
-cleanup
-make CC=gcc CFLAGS='-Werror -Os'
-
-
 if uname -a | grep -F Linux >/dev/null; then
     msg "build+test: make shared" # ~ 30s
     cleanup
