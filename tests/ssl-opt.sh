@@ -2335,7 +2335,7 @@ run_test    "Authentication: client no cert, openssl server required" \
             -c "! mbedtls_ssl_handshake returned"
 
 requires_config_enabled MBEDTLS_SSL_PROTO_SSL3
-run_test    "Authentication: client no cert, ssl3" \
+run_test    "Authentication: client no cert, SSLv3" \
             "$P_SRV debug_level=3 auth_mode=optional force_version=ssl3" \
             "$P_CLI debug_level=3 crt_file=none key_file=none min_version=ssl3" \
             0 \

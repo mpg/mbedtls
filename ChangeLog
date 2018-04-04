@@ -44,6 +44,9 @@ Bugfix
      Nick Wilson on issue #355
    * In test_suite_pk, pass valid parameters when testing for hash length
      overflow. #1179
+   * Fix memory allocation corner cases in memory_buffer_alloc.c module. Found
+     by Guido Vranken. #639
+   * Log correct number of ciphersuites used in Client Hello message. #918
 
 Changes
    * Fix tag lengths and value ranges in the documentation of CCM encryption.
@@ -53,6 +56,8 @@ Changes
    * MD functions deprecated in 2.7.0 are no longer inline, to provide
      a migration path for those depending on the library's ABI.
    * Clarify the documentation of mbedtls_ssl_setup.
+   * Use (void) when defining functions with no parameters. Contributed by
+     Joris Aerts. #678
 
 = mbed TLS 2.7.0 branch released 2018-02-03
 
