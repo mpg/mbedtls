@@ -1609,6 +1609,81 @@ static int ssl_encrypt_buf( mbedtls_ssl_context *ssl )
     return( 0 );
 }
 
+#if defined(MBEDTLS_ARC4_C) || defined(MBEDTLS_CIPHER_NULL_CIPHER)
+static int ssl_decrypt_stream( mbedtls_ssl_context *ssl )
+{
+    int ret;
+    size_t olen = 0;
+    unsigned char mac_expect[MBEDTLS_SSL_MAC_ADD];
+
+    if( ( ret = mbedtls_cipher_crypt( &ssl->transform_in->cipher_ctx_dec,
+                               ssl->transform_in->iv_dec,
+                               ssl->transform_in->ivlen,
+                               ssl->in_msg, ssl->in_msglen,
+                               ssl->in_msg, &olen ) ) != 0 )
+    {
+        MBEDTLS_SSL_DEBUG_RET( 1, "mbedtls_cipher_crypt", ret );
+        return( ret );
+    }
+
+    if( ssl->in_msglen != olen )
+    {
+        MBEDTLS_SSL_DEBUG_MSG( 1, ( "should never happen" ) );
+        return( MBEDTLS_ERR_SSL_INTERNAL_ERROR );
+    }
+
+    ssl->in_msglen -= ssl->transform_in->maclen;
+
+    ssl->in_len[0] = (unsigned char)( ssl->in_msglen >> 8 );
+    ssl->in_len[1] = (unsigned char)( ssl->in_msglen      );
+
+#if defined(MBEDTLS_SSL_PROTO_SSL3)
+    if( ssl->minor_ver == MBEDTLS_SSL_MINOR_VERSION_0 )
+    {
+        ssl_mac( &ssl->transform_in->md_ctx_dec,
+                  ssl->transform_in->mac_dec,
+                  ssl->in_msg, ssl->in_msglen,
+                  ssl->in_ctr, ssl->in_msgtype,
+                  mac_expect );
+    }
+    else
+#endif /* MBEDTLS_SSL_PROTO_SSL3 */
+#if defined(MBEDTLS_SSL_PROTO_TLS1) || defined(MBEDTLS_SSL_PROTO_TLS1_1) || \
+    defined(MBEDTLS_SSL_PROTO_TLS1_2)
+    if( ssl->minor_ver > MBEDTLS_SSL_MINOR_VERSION_0 )
+    {
+        mbedtls_md_hmac_update( &ssl->transform_in->md_ctx_dec, ssl->in_ctr, 8 );
+        mbedtls_md_hmac_update( &ssl->transform_in->md_ctx_dec, ssl->in_hdr, 3 );
+        mbedtls_md_hmac_update( &ssl->transform_in->md_ctx_dec, ssl->in_len, 2 );
+        mbedtls_md_hmac_update( &ssl->transform_in->md_ctx_dec, ssl->in_msg,
+                         ssl->in_msglen );
+        mbedtls_md_hmac_finish( &ssl->transform_in->md_ctx_dec, mac_expect );
+
+        mbedtls_md_hmac_reset( &ssl->transform_in->md_ctx_dec );
+    }
+    else
+#endif /* MBEDTLS_SSL_PROTO_TLS1 || MBEDTLS_SSL_PROTO_TLS1_1 || \
+          MBEDTLS_SSL_PROTO_TLS1_2 */
+    {
+        MBEDTLS_SSL_DEBUG_MSG( 1, ( "should never happen" ) );
+        return( MBEDTLS_ERR_SSL_INTERNAL_ERROR );
+    }
+
+    MBEDTLS_SSL_DEBUG_BUF( 4, "expected mac", mac_expect, ssl->transform_in->maclen );
+    MBEDTLS_SSL_DEBUG_BUF( 4, "message  mac", ssl->in_msg + ssl->in_msglen,
+                           ssl->transform_in->maclen );
+
+    if( mbedtls_ssl_safer_memcmp( ssl->in_msg + ssl->in_msglen, mac_expect,
+                                  ssl->transform_in->maclen ) != 0 )
+    {
+        MBEDTLS_SSL_DEBUG_MSG( 1, ( "message mac does not match" ) );
+        return( MBEDTLS_ERR_SSL_INVALID_MAC );
+    }
+
+    return( 0 );
+}
+#endif /* MBEDTLS_ARC4_C || MBEDTLS_CIPHER_NULL_CIPHER */
+
 static int ssl_decrypt_buf( mbedtls_ssl_context *ssl )
 {
     size_t i;
@@ -1639,25 +1714,11 @@ static int ssl_decrypt_buf( mbedtls_ssl_context *ssl )
     if( mode == MBEDTLS_MODE_STREAM )
     {
         int ret;
-        size_t olen = 0;
 
-        padlen = 0;
-
-        if( ( ret = mbedtls_cipher_crypt( &ssl->transform_in->cipher_ctx_dec,
-                                   ssl->transform_in->iv_dec,
-                                   ssl->transform_in->ivlen,
-                                   ssl->in_msg, ssl->in_msglen,
-                                   ssl->in_msg, &olen ) ) != 0 )
-        {
-            MBEDTLS_SSL_DEBUG_RET( 1, "mbedtls_cipher_crypt", ret );
+        if( ( ret = ssl_decrypt_stream( ssl ) ) != 0 )
             return( ret );
-        }
 
-        if( ssl->in_msglen != olen )
-        {
-            MBEDTLS_SSL_DEBUG_MSG( 1, ( "should never happen" ) );
-            return( MBEDTLS_ERR_SSL_INTERNAL_ERROR );
-        }
+        auth_done++;
     }
     else
 #endif /* MBEDTLS_ARC4_C || MBEDTLS_CIPHER_NULL_CIPHER */
