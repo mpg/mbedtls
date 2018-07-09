@@ -1684,6 +1684,79 @@ static int ssl_decrypt_stream( mbedtls_ssl_context *ssl )
 }
 #endif /* MBEDTLS_ARC4_C || MBEDTLS_CIPHER_NULL_CIPHER */
 
+#if defined(MBEDTLS_GCM_C) || defined(MBEDTLS_CCM_C)
+static int ssl_decrypt_aead( mbedtls_ssl_context *ssl )
+{
+    int ret;
+    size_t dec_msglen, olen;
+    unsigned char *dec_msg;
+    unsigned char *dec_msg_result;
+    unsigned char add_data[13];
+    unsigned char taglen = ssl->transform_in->ciphersuite_info->flags &
+                           MBEDTLS_CIPHERSUITE_SHORT_TAG ? 8 : 16;
+    size_t explicit_iv_len = ssl->transform_in->ivlen -
+                             ssl->transform_in->fixed_ivlen;
+
+    if( ssl->in_msglen < explicit_iv_len + taglen )
+    {
+        MBEDTLS_SSL_DEBUG_MSG( 1, ( "msglen (%d) < explicit_iv_len (%d) "
+                            "+ taglen (%d)", ssl->in_msglen,
+                            explicit_iv_len, taglen ) );
+        return( MBEDTLS_ERR_SSL_INVALID_MAC );
+    }
+    dec_msglen = ssl->in_msglen - explicit_iv_len - taglen;
+
+    dec_msg = ssl->in_msg;
+    dec_msg_result = ssl->in_msg;
+    ssl->in_msglen = dec_msglen;
+
+    memcpy( add_data, ssl->in_ctr, 8 );
+    add_data[8]  = ssl->in_msgtype;
+    mbedtls_ssl_write_version( ssl->major_ver, ssl->minor_ver,
+                       ssl->conf->transport, add_data + 9 );
+    add_data[11] = ( ssl->in_msglen >> 8 ) & 0xFF;
+    add_data[12] = ssl->in_msglen & 0xFF;
+
+    MBEDTLS_SSL_DEBUG_BUF( 4, "additional data used for AEAD",
+                   add_data, 13 );
+
+    memcpy( ssl->transform_in->iv_dec + ssl->transform_in->fixed_ivlen,
+            ssl->in_iv,
+            ssl->transform_in->ivlen - ssl->transform_in->fixed_ivlen );
+
+    MBEDTLS_SSL_DEBUG_BUF( 4, "IV used", ssl->transform_in->iv_dec,
+                                 ssl->transform_in->ivlen );
+    MBEDTLS_SSL_DEBUG_BUF( 4, "TAG used", dec_msg + dec_msglen, taglen );
+
+    /*
+     * Decrypt and authenticate
+     */
+    if( ( ret = mbedtls_cipher_auth_decrypt( &ssl->transform_in->cipher_ctx_dec,
+                                     ssl->transform_in->iv_dec,
+                                     ssl->transform_in->ivlen,
+                                     add_data, 13,
+                                     dec_msg, dec_msglen,
+                                     dec_msg_result, &olen,
+                                     dec_msg + dec_msglen, taglen ) ) != 0 )
+    {
+        MBEDTLS_SSL_DEBUG_RET( 1, "mbedtls_cipher_auth_decrypt", ret );
+
+        if( ret == MBEDTLS_ERR_CIPHER_AUTH_FAILED )
+            return( MBEDTLS_ERR_SSL_INVALID_MAC );
+
+        return( ret );
+    }
+
+    if( olen != dec_msglen )
+    {
+        MBEDTLS_SSL_DEBUG_MSG( 1, ( "should never happen" ) );
+        return( MBEDTLS_ERR_SSL_INTERNAL_ERROR );
+    }
+
+    return( 0 );
+}
+#endif /* MBEDTLS_GCM_C || MBEDTLS_CCM_C */
+
 static int ssl_decrypt_buf( mbedtls_ssl_context *ssl )
 {
     size_t i;
@@ -1727,71 +1800,11 @@ static int ssl_decrypt_buf( mbedtls_ssl_context *ssl )
         mode == MBEDTLS_MODE_CCM )
     {
         int ret;
-        size_t dec_msglen, olen;
-        unsigned char *dec_msg;
-        unsigned char *dec_msg_result;
-        unsigned char add_data[13];
-        unsigned char taglen = ssl->transform_in->ciphersuite_info->flags &
-                               MBEDTLS_CIPHERSUITE_SHORT_TAG ? 8 : 16;
-        size_t explicit_iv_len = ssl->transform_in->ivlen -
-                                 ssl->transform_in->fixed_ivlen;
 
-        if( ssl->in_msglen < explicit_iv_len + taglen )
-        {
-            MBEDTLS_SSL_DEBUG_MSG( 1, ( "msglen (%d) < explicit_iv_len (%d) "
-                                "+ taglen (%d)", ssl->in_msglen,
-                                explicit_iv_len, taglen ) );
-            return( MBEDTLS_ERR_SSL_INVALID_MAC );
-        }
-        dec_msglen = ssl->in_msglen - explicit_iv_len - taglen;
-
-        dec_msg = ssl->in_msg;
-        dec_msg_result = ssl->in_msg;
-        ssl->in_msglen = dec_msglen;
-
-        memcpy( add_data, ssl->in_ctr, 8 );
-        add_data[8]  = ssl->in_msgtype;
-        mbedtls_ssl_write_version( ssl->major_ver, ssl->minor_ver,
-                           ssl->conf->transport, add_data + 9 );
-        add_data[11] = ( ssl->in_msglen >> 8 ) & 0xFF;
-        add_data[12] = ssl->in_msglen & 0xFF;
-
-        MBEDTLS_SSL_DEBUG_BUF( 4, "additional data used for AEAD",
-                       add_data, 13 );
-
-        memcpy( ssl->transform_in->iv_dec + ssl->transform_in->fixed_ivlen,
-                ssl->in_iv,
-                ssl->transform_in->ivlen - ssl->transform_in->fixed_ivlen );
-
-        MBEDTLS_SSL_DEBUG_BUF( 4, "IV used", ssl->transform_in->iv_dec,
-                                     ssl->transform_in->ivlen );
-        MBEDTLS_SSL_DEBUG_BUF( 4, "TAG used", dec_msg + dec_msglen, taglen );
-
-        /*
-         * Decrypt and authenticate
-         */
-        if( ( ret = mbedtls_cipher_auth_decrypt( &ssl->transform_in->cipher_ctx_dec,
-                                         ssl->transform_in->iv_dec,
-                                         ssl->transform_in->ivlen,
-                                         add_data, 13,
-                                         dec_msg, dec_msglen,
-                                         dec_msg_result, &olen,
-                                         dec_msg + dec_msglen, taglen ) ) != 0 )
-        {
-            MBEDTLS_SSL_DEBUG_RET( 1, "mbedtls_cipher_auth_decrypt", ret );
-
-            if( ret == MBEDTLS_ERR_CIPHER_AUTH_FAILED )
-                return( MBEDTLS_ERR_SSL_INVALID_MAC );
-
+        if( ( ret = ssl_decrypt_aead( ssl ) ) != 0 )
             return( ret );
-        }
-        auth_done++;
 
-        if( olen != dec_msglen )
-        {
-            MBEDTLS_SSL_DEBUG_MSG( 1, ( "should never happen" ) );
-            return( MBEDTLS_ERR_SSL_INTERNAL_ERROR );
-        }
+        auth_done++;
     }
     else
 #endif /* MBEDTLS_GCM_C || MBEDTLS_CCM_C */
