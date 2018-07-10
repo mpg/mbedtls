@@ -2222,9 +2222,8 @@ static int ssl_decrypt_cbc_traditional( mbedtls_ssl_context *ssl )
           ( MBEDTLS_AES_C || MBEDTLS_CAMELLIA_C ) */
 static int ssl_decrypt_buf( mbedtls_ssl_context *ssl )
 {
-    size_t i;
     mbedtls_cipher_mode_t mode;
-    int auth_done = 0;
+    int ret;
 
     MBEDTLS_SSL_DEBUG_MSG( 2, ( "=> decrypt buf" ) );
 
@@ -2246,12 +2245,7 @@ static int ssl_decrypt_buf( mbedtls_ssl_context *ssl )
 #if defined(MBEDTLS_ARC4_C) || defined(MBEDTLS_CIPHER_NULL_CIPHER)
     if( mode == MBEDTLS_MODE_STREAM )
     {
-        int ret;
-
-        if( ( ret = ssl_decrypt_stream( ssl ) ) != 0 )
-            return( ret );
-
-        auth_done++;
+        ret = ssl_decrypt_stream( ssl );
     }
     else
 #endif /* MBEDTLS_ARC4_C || MBEDTLS_CIPHER_NULL_CIPHER */
@@ -2259,12 +2253,7 @@ static int ssl_decrypt_buf( mbedtls_ssl_context *ssl )
     if( mode == MBEDTLS_MODE_GCM ||
         mode == MBEDTLS_MODE_CCM )
     {
-        int ret;
-
-        if( ( ret = ssl_decrypt_aead( ssl ) ) != 0 )
-            return( ret );
-
-        auth_done++;
+        ret = ssl_decrypt_aead( ssl );
     }
     else
 #endif /* MBEDTLS_GCM_C || MBEDTLS_CCM_C */
@@ -2275,22 +2264,12 @@ static int ssl_decrypt_buf( mbedtls_ssl_context *ssl )
 #if defined(MBEDTLS_SSL_ENCRYPT_THEN_MAC)
         if( ssl->session_in->encrypt_then_mac == MBEDTLS_SSL_ETM_ENABLED )
         {
-            int ret;
-
-            if( ( ret = ssl_decrypt_cbc_etm( ssl ) ) != 0 )
-                return( ret );
-
-            auth_done++;
+            ret = ssl_decrypt_cbc_etm( ssl );
         }
         else
 #endif
         {
-            int ret;
-
-            if( ( ret = ssl_decrypt_cbc_traditional( ssl ) ) != 0 )
-                return( ret );
-
-            auth_done++;
+            ret = ssl_decrypt_cbc_traditional( ssl );
         }
     }
     else
@@ -2300,6 +2279,9 @@ static int ssl_decrypt_buf( mbedtls_ssl_context *ssl )
         MBEDTLS_SSL_DEBUG_MSG( 1, ( "should never happen" ) );
         return( MBEDTLS_ERR_SSL_INTERNAL_ERROR );
     }
+
+    if( ret != 0 )
+        return( ret );
 
     MBEDTLS_SSL_DEBUG_BUF( 4, "raw buffer after decryption",
                    ssl->in_msg, ssl->in_msglen );
@@ -2330,6 +2312,8 @@ static int ssl_decrypt_buf( mbedtls_ssl_context *ssl )
     else
 #endif
     {
+        size_t i;
+
         for( i = 8; i > ssl_ep_len( ssl ); i-- )
             if( ++ssl->in_ctr[i - 1] != 0 )
                 break;
