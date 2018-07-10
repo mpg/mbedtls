@@ -1962,76 +1962,13 @@ defined(MBEDTLS_SSL_PROTO_TLS1_2)
 #endif /* MBEDTLS_CIPHER_MODE_CBC &&
           ( MBEDTLS_AES_C || MBEDTLS_CAMELLIA_C ) */
 
-static int ssl_decrypt_buf( mbedtls_ssl_context *ssl )
-{
-    size_t i;
-    mbedtls_cipher_mode_t mode;
-    int auth_done = 0;
-#if defined(SSL_SOME_MODES_USE_MAC)
-    size_t padlen = 0, correct = 1;
-#endif
-
-    MBEDTLS_SSL_DEBUG_MSG( 2, ( "=> decrypt buf" ) );
-
-    if( ssl->session_in == NULL || ssl->transform_in == NULL )
-    {
-        MBEDTLS_SSL_DEBUG_MSG( 1, ( "should never happen" ) );
-        return( MBEDTLS_ERR_SSL_INTERNAL_ERROR );
-    }
-
-    mode = mbedtls_cipher_get_cipher_mode( &ssl->transform_in->cipher_ctx_dec );
-
-    if( ssl->in_msglen < ssl->transform_in->minlen )
-    {
-        MBEDTLS_SSL_DEBUG_MSG( 1, ( "in_msglen (%d) < minlen (%d)",
-                       ssl->in_msglen, ssl->transform_in->minlen ) );
-        return( MBEDTLS_ERR_SSL_INVALID_MAC );
-    }
-
-#if defined(MBEDTLS_ARC4_C) || defined(MBEDTLS_CIPHER_NULL_CIPHER)
-    if( mode == MBEDTLS_MODE_STREAM )
-    {
-        int ret;
-
-        if( ( ret = ssl_decrypt_stream( ssl ) ) != 0 )
-            return( ret );
-
-        auth_done++;
-    }
-    else
-#endif /* MBEDTLS_ARC4_C || MBEDTLS_CIPHER_NULL_CIPHER */
-#if defined(MBEDTLS_GCM_C) || defined(MBEDTLS_CCM_C)
-    if( mode == MBEDTLS_MODE_GCM ||
-        mode == MBEDTLS_MODE_CCM )
-    {
-        int ret;
-
-        if( ( ret = ssl_decrypt_aead( ssl ) ) != 0 )
-            return( ret );
-
-        auth_done++;
-    }
-    else
-#endif /* MBEDTLS_GCM_C || MBEDTLS_CCM_C */
-#if defined(MBEDTLS_CIPHER_MODE_CBC) &&                                     \
-    defined(MBEDTLS_SSL_ENCRYPT_THEN_MAC) &&                                \
-    ( defined(MBEDTLS_AES_C) || defined(MBEDTLS_CAMELLIA_C) )
-    if( mode == MBEDTLS_MODE_CBC &&
-        ssl->session_in->encrypt_then_mac == MBEDTLS_SSL_ETM_ENABLED )
-    {
-        int ret;
-
-        if( ( ret = ssl_decrypt_cbc_etm( ssl ) ) != 0 )
-            return( ret );
-
-        auth_done++;
-    }
-    else
-#endif /* MBEDTLS_CIPHER_MODE_CBC && MBEDTLS_SSL_ENCRYPT_THEN_MAC &&
-          ( MBEDTLS_AES_C || MBEDTLS_CAMELLIA_C ) */
 #if defined(MBEDTLS_CIPHER_MODE_CBC) &&                                    \
     ( defined(MBEDTLS_AES_C) || defined(MBEDTLS_CAMELLIA_C) )
-    if( mode == MBEDTLS_MODE_CBC )
+static int ssl_decrypt_cbc_traditional( mbedtls_ssl_context *ssl )
+{
+    size_t i;
+    size_t padlen = 0, correct = 1;
+
     {
         /*
          * Decrypt and check the padding
@@ -2119,8 +2056,7 @@ static int ssl_decrypt_buf( mbedtls_ssl_context *ssl )
 
         padlen = 1 + ssl->in_msg[ssl->in_msglen - 1];
 
-        if( ssl->in_msglen < ssl->transform_in->maclen + padlen &&
-            auth_done == 0 )
+        if( ssl->in_msglen < ssl->transform_in->maclen + padlen )
         {
 #if defined(MBEDTLS_SSL_DEBUG_ALL)
             MBEDTLS_SSL_DEBUG_MSG( 1, ( "msglen (%d) < maclen (%d) + padlen (%d)",
@@ -2197,23 +2133,7 @@ static int ssl_decrypt_buf( mbedtls_ssl_context *ssl )
 
         ssl->in_msglen -= padlen;
     }
-    else
-#endif /* MBEDTLS_CIPHER_MODE_CBC &&
-          ( MBEDTLS_AES_C || MBEDTLS_CAMELLIA_C ) */
-    {
-        MBEDTLS_SSL_DEBUG_MSG( 1, ( "should never happen" ) );
-        return( MBEDTLS_ERR_SSL_INTERNAL_ERROR );
-    }
 
-    MBEDTLS_SSL_DEBUG_BUF( 4, "raw buffer after decryption",
-                   ssl->in_msg, ssl->in_msglen );
-
-    /*
-     * Authenticate if not done yet.
-     * Compute the MAC regardless of the padding result (RFC4346, CBCTIME).
-     */
-#if defined(SSL_SOME_MODES_USE_MAC)
-    if( auth_done == 0 )
     {
         unsigned char mac_expect[MBEDTLS_SSL_MAC_ADD];
 
@@ -2288,7 +2208,6 @@ static int ssl_decrypt_buf( mbedtls_ssl_context *ssl )
 #endif
             correct = 0;
         }
-        auth_done++;
 
         /*
          * Finally check the correct flag
@@ -2296,14 +2215,94 @@ static int ssl_decrypt_buf( mbedtls_ssl_context *ssl )
         if( correct == 0 )
             return( MBEDTLS_ERR_SSL_INVALID_MAC );
     }
-#endif /* SSL_SOME_MODES_USE_MAC */
 
-    /* Make extra sure authentication was performed, exactly once */
-    if( auth_done != 1 )
+    return( 0 );
+}
+#endif /* MBEDTLS_CIPHER_MODE_CBC &&
+          ( MBEDTLS_AES_C || MBEDTLS_CAMELLIA_C ) */
+static int ssl_decrypt_buf( mbedtls_ssl_context *ssl )
+{
+    size_t i;
+    mbedtls_cipher_mode_t mode;
+    int auth_done = 0;
+
+    MBEDTLS_SSL_DEBUG_MSG( 2, ( "=> decrypt buf" ) );
+
+    if( ssl->session_in == NULL || ssl->transform_in == NULL )
     {
         MBEDTLS_SSL_DEBUG_MSG( 1, ( "should never happen" ) );
         return( MBEDTLS_ERR_SSL_INTERNAL_ERROR );
     }
+
+    mode = mbedtls_cipher_get_cipher_mode( &ssl->transform_in->cipher_ctx_dec );
+
+    if( ssl->in_msglen < ssl->transform_in->minlen )
+    {
+        MBEDTLS_SSL_DEBUG_MSG( 1, ( "in_msglen (%d) < minlen (%d)",
+                       ssl->in_msglen, ssl->transform_in->minlen ) );
+        return( MBEDTLS_ERR_SSL_INVALID_MAC );
+    }
+
+#if defined(MBEDTLS_ARC4_C) || defined(MBEDTLS_CIPHER_NULL_CIPHER)
+    if( mode == MBEDTLS_MODE_STREAM )
+    {
+        int ret;
+
+        if( ( ret = ssl_decrypt_stream( ssl ) ) != 0 )
+            return( ret );
+
+        auth_done++;
+    }
+    else
+#endif /* MBEDTLS_ARC4_C || MBEDTLS_CIPHER_NULL_CIPHER */
+#if defined(MBEDTLS_GCM_C) || defined(MBEDTLS_CCM_C)
+    if( mode == MBEDTLS_MODE_GCM ||
+        mode == MBEDTLS_MODE_CCM )
+    {
+        int ret;
+
+        if( ( ret = ssl_decrypt_aead( ssl ) ) != 0 )
+            return( ret );
+
+        auth_done++;
+    }
+    else
+#endif /* MBEDTLS_GCM_C || MBEDTLS_CCM_C */
+#if defined(MBEDTLS_CIPHER_MODE_CBC) &&                                     \
+    ( defined(MBEDTLS_AES_C) || defined(MBEDTLS_CAMELLIA_C) )
+    if( mode == MBEDTLS_MODE_CBC )
+    {
+#if defined(MBEDTLS_SSL_ENCRYPT_THEN_MAC)
+        if( ssl->session_in->encrypt_then_mac == MBEDTLS_SSL_ETM_ENABLED )
+        {
+            int ret;
+
+            if( ( ret = ssl_decrypt_cbc_etm( ssl ) ) != 0 )
+                return( ret );
+
+            auth_done++;
+        }
+        else
+#endif
+        {
+            int ret;
+
+            if( ( ret = ssl_decrypt_cbc_traditional( ssl ) ) != 0 )
+                return( ret );
+
+            auth_done++;
+        }
+    }
+    else
+#endif /* MBEDTLS_CIPHER_MODE_CBC && MBEDTLS_SSL_ENCRYPT_THEN_MAC &&
+          ( MBEDTLS_AES_C || MBEDTLS_CAMELLIA_C ) */
+    {
+        MBEDTLS_SSL_DEBUG_MSG( 1, ( "should never happen" ) );
+        return( MBEDTLS_ERR_SSL_INTERNAL_ERROR );
+    }
+
+    MBEDTLS_SSL_DEBUG_BUF( 4, "raw buffer after decryption",
+                   ssl->in_msg, ssl->in_msglen );
 
     if( ssl->in_msglen == 0 )
     {
