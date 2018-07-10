@@ -1,0 +1,10 @@
+waiting for:
+- lucky 13 sha-384 fix
+- lucky 13 cache fixes
+- fixes for #1632 aka IOTSSL-1919 + IOTSSL-1920
+
+testing:
+- enable MBEDTLS_SSL_PROTO_SSL3
+- disable MBEDTLS_REMOVE_ARC4_CIPHERSUITES
+
+make ssl_server2 ssl_client2 && env OPENSSL_CMD="$OPENSSL_NEXT" tests/compat.sh -m 'tls1 tls1_1 tls1_2' -V NO -t RSA -f 'DHE.RSA.*CBC' -e DES && env OPENSSL_CMD="$OPENSSL_LEGACY" GNUTLS_CLI="$GNUTLS_LEGACY_CLI" GNUTLS_SERV="$GNUTLS_LEGACY_SERV" tests/compat.sh -m 'ssl3 tls1 tls1_1 tls1_2' -V NO -t RSA -e '^$'
