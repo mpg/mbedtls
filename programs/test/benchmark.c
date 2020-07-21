@@ -161,7 +161,7 @@ do {                                                                    \
 #define TITLE_SPACE 16
 
 #define MEMORY_MEASURE_INIT                                             \
-    size_t max_used, max_blocks, max_bytes;                             \
+    size_t max_used, max_blocks;                                        \
     size_t prv_used, prv_blocks;                                        \
     mbedtls_memory_buffer_alloc_cur_get( &prv_used, &prv_blocks );      \
     mbedtls_memory_buffer_alloc_max_reset( );
@@ -172,8 +172,8 @@ do {                                                                    \
     while( ii-- ) mbedtls_printf( " " );                                \
     max_used -= prv_used;                                               \
     max_blocks -= prv_blocks;                                           \
-    max_bytes = max_used + MEM_BLOCK_OVERHEAD * max_blocks;             \
-    mbedtls_printf( "%6u heap bytes", (unsigned) max_bytes );
+    mbedtls_printf( "%6u heap bytes (%2u blocks)",                      \
+                    (unsigned) max_used, (unsigned) max_blocks );
 
 #else
 #define MEMORY_MEASURE_INIT
@@ -1032,23 +1032,25 @@ int main( int argc, char *argv[] )
             mbedtls_ecdh_init( &ecdh_cli );
 
             mbedtls_snprintf( title, sizeof( title ), "ECDHE-%s", curve_info->name );
-            TIME_PUBLIC( title, "full handshake",
-                const unsigned char * p_srv = buf_srv;
 
-                CHECK_AND_CONTINUE( mbedtls_ecdh_setup( &ecdh_srv, curve_info->grp_id ) );
+            CHECK_AND_CONTINUE( mbedtls_ecdh_setup( &ecdh_srv, curve_info->grp_id ) );
+            TIME_PUBLIC( title, "gen keypair",
                 CHECK_AND_CONTINUE( mbedtls_ecdh_make_params( &ecdh_srv, &olen, buf_srv, sizeof( buf_srv ), myrand, NULL ) );
-
-                CHECK_AND_CONTINUE( mbedtls_ecdh_read_params( &ecdh_cli, &p_srv, p_srv + olen ) );
-                CHECK_AND_CONTINUE( mbedtls_ecdh_make_public( &ecdh_cli, &olen, buf_cli, sizeof( buf_cli ), myrand, NULL ) );
-
-                CHECK_AND_CONTINUE( mbedtls_ecdh_read_public( &ecdh_srv, buf_cli, olen ) );
-                CHECK_AND_CONTINUE( mbedtls_ecdh_calc_secret( &ecdh_srv, &olen, buf_srv, sizeof( buf_srv ), myrand, NULL ) );
-
-                CHECK_AND_CONTINUE( mbedtls_ecdh_calc_secret( &ecdh_cli, &olen, buf_cli, sizeof( buf_cli ), myrand, NULL ) );
-                mbedtls_ecdh_free( &ecdh_cli );
-
-                mbedtls_ecdh_free( &ecdh_srv );
             );
+
+            const unsigned char * p_srv = buf_srv;
+            CHECK_AND_CONTINUE( mbedtls_ecdh_read_params( &ecdh_cli, &p_srv, p_srv + olen ) );
+            CHECK_AND_CONTINUE( mbedtls_ecdh_make_public( &ecdh_cli, &olen, buf_cli, sizeof( buf_cli ), myrand, NULL ) );
+
+            CHECK_AND_CONTINUE( mbedtls_ecdh_read_public( &ecdh_srv, buf_cli, olen ) );
+            CHECK_AND_CONTINUE( mbedtls_ecdh_calc_secret( &ecdh_srv, &olen, buf_srv, sizeof( buf_srv ), myrand, NULL ) );
+
+            TIME_PUBLIC( title, "calc secret",
+                CHECK_AND_CONTINUE( mbedtls_ecdh_calc_secret( &ecdh_cli, &olen, buf_cli, sizeof( buf_cli ), myrand, NULL ) );
+            );
+            mbedtls_ecdh_free( &ecdh_cli );
+
+            mbedtls_ecdh_free( &ecdh_srv );
 
         }
     }

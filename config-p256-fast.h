@@ -34,6 +34,19 @@ void *dummy_calloc(size_t n, size_t s);
 void dummy_free(void *ptr);
 #endif
 
+/* Additional things for programs/test/benchmark with heap stats */
+#if defined(BENCHMARK_HEAP)
+#define MBEDTLS_PLATFORM_C
+#define MBEDTLS_PLATFORM_MEMORY
+#define MBEDTLS_MEMORY_BUFFER_ALLOC_C
+#define MBEDTLS_MEMORY_DEBUG
+#define MBEDTLS_TIMING_C
+// extra deps for ECDSA in benchmark
+#define MBEDTLS_ASN1_PARSE_C
+#define MBEDTLS_ASN1_WRITE_C
+#define MBEDTLS_SHA256_C
+#endif
+
 /* Save RAM by adjusting to our exact needs */
 #define MBEDTLS_ECP_MAX_BITS   256
 #define MBEDTLS_MPI_MAX_SIZE    32  // 256 bits is 32 bytes
