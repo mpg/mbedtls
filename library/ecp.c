@@ -120,6 +120,10 @@
 #define inline __inline
 #endif
 
+#if defined(NO_PTR_CALL) && defined(MBEDTLS_ECP_NIST_OPTIM)
+int ecp_mod_p256( mbedtls_mpi * );
+#endif
+
 #if defined(MBEDTLS_SELF_TEST)
 /*
  * Counts of point addition and doubling, and field multiplications.
@@ -1192,11 +1196,14 @@ int mbedtls_ecp_tls_write_group( const mbedtls_ecp_group *grp, size_t *olen,
  */
 static int ecp_modp( mbedtls_mpi *N, const mbedtls_ecp_group *grp )
 {
+#if defined(MBEDTLS_ECP_NIST_OPTIM)
     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
 
     if( grp->modp == NULL )
+#endif /* MBEDTLS_ECP_NIST_OPTIM */
         return( mbedtls_mpi_mod_mpi( N, N, &grp->P ) );
 
+#if defined(MBEDTLS_ECP_NIST_OPTIM)
     /* N->s < 0 is a much faster test, which fails only if N is 0 */
     if( ( N->s < 0 && mbedtls_mpi_cmp_int( N, 0 ) != 0 ) ||
         mbedtls_mpi_bitlen( N ) > 2 * grp->pbits )
@@ -1204,7 +1211,11 @@ static int ecp_modp( mbedtls_mpi *N, const mbedtls_ecp_group *grp )
         return( MBEDTLS_ERR_ECP_BAD_INPUT_DATA );
     }
 
+#if defined(NO_PTR_CALL)
+    MBEDTLS_MPI_CHK( ecp_mod_p256( N ) );
+#else
     MBEDTLS_MPI_CHK( grp->modp( N ) );
+#endif /* NO_PTR_CALL */
 
     /* N->s < 0 is a much faster test, which fails only if N is 0 */
     while( N->s < 0 && mbedtls_mpi_cmp_int( N, 0 ) != 0 )
@@ -1216,6 +1227,7 @@ static int ecp_modp( mbedtls_mpi *N, const mbedtls_ecp_group *grp )
 
 cleanup:
     return( ret );
+#endif /* MBEDTLS_ECP_NIST_OPTIM */
 }
 
 /*
@@ -1297,13 +1309,13 @@ cleanup:
     return( ret );
 }
 
-static inline int mbedtls_mpi_shift_l_mod( const mbedtls_ecp_group *grp,
-                                           mbedtls_mpi *X,
-                                           size_t count )
+static inline int mbedtls_mpi_double_mod( const mbedtls_ecp_group *grp,
+                                           mbedtls_mpi *X )
 {
     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
-    MBEDTLS_MPI_CHK( mbedtls_mpi_shift_l( X, count ) );
-    MOD_ADD( *X );
+    MBEDTLS_MPI_CHK( mbedtls_mpi_shift_l( X, 1 ) );
+    if( mbedtls_mpi_cmp_mpi( X, &grp->P ) >= 0 )
+        MBEDTLS_MPI_CHK( mbedtls_mpi_sub_abs( X, X, &grp->P ) );
 cleanup:
     return( ret );
 }
@@ -1541,13 +1553,13 @@ static int ecp_double_jac( const mbedtls_ecp_group *grp, mbedtls_ecp_point *R,
 
     /* S = 4.X.Y^2 */
     MBEDTLS_MPI_CHK( mbedtls_mpi_mul_mod( grp, &T,  &P->Y,  &P->Y   ) );
-    MBEDTLS_MPI_CHK( mbedtls_mpi_shift_l_mod( grp, &T,  1               ) );
+    MBEDTLS_MPI_CHK( mbedtls_mpi_double_mod( grp, &T                ) );
     MBEDTLS_MPI_CHK( mbedtls_mpi_mul_mod( grp, &S,  &P->X,  &T      ) );
-    MBEDTLS_MPI_CHK( mbedtls_mpi_shift_l_mod( grp, &S,  1               ) );
+    MBEDTLS_MPI_CHK( mbedtls_mpi_double_mod( grp, &S                ) );
 
     /* U = 8.Y^4 */
     MBEDTLS_MPI_CHK( mbedtls_mpi_mul_mod( grp, &U,  &T,     &T      ) );
-    MBEDTLS_MPI_CHK( mbedtls_mpi_shift_l_mod( grp, &U,  1               ) );
+    MBEDTLS_MPI_CHK( mbedtls_mpi_double_mod( grp, &U                ) );
 
     /* T = M^2 - 2.S */
     MBEDTLS_MPI_CHK( mbedtls_mpi_mul_mod( grp, &T,  &M,     &M      ) );
@@ -1561,7 +1573,7 @@ static int ecp_double_jac( const mbedtls_ecp_group *grp, mbedtls_ecp_point *R,
 
     /* U = 2.Y.Z */
     MBEDTLS_MPI_CHK( mbedtls_mpi_mul_mod( grp, &U,  &P->Y,  &P->Z   ) );
-    MBEDTLS_MPI_CHK( mbedtls_mpi_shift_l_mod( grp, &U,  1               ) );
+    MBEDTLS_MPI_CHK( mbedtls_mpi_double_mod( grp, &U                ) );
 
     MBEDTLS_MPI_CHK( mbedtls_mpi_copy( &R->X, &T ) );
     MBEDTLS_MPI_CHK( mbedtls_mpi_copy( &R->Y, &S ) );
@@ -1651,7 +1663,7 @@ static int ecp_add_mixed( const mbedtls_ecp_group *grp, mbedtls_ecp_point *R,
     MBEDTLS_MPI_CHK( mbedtls_mpi_mul_mod( grp, &T4,  &T3,    &T1   ) );
     MBEDTLS_MPI_CHK( mbedtls_mpi_mul_mod( grp, &T3,  &T3,    &P->X ) );
     MBEDTLS_MPI_CHK( mbedtls_mpi_copy( &T1, &T3 ) );
-    MBEDTLS_MPI_CHK( mbedtls_mpi_shift_l_mod( grp, &T1,  1     ) );
+    MBEDTLS_MPI_CHK( mbedtls_mpi_double_mod( grp, &T1      ) );
     MBEDTLS_MPI_CHK( mbedtls_mpi_mul_mod( grp, &X,   &T2,    &T2   ) );
     MBEDTLS_MPI_CHK( mbedtls_mpi_sub_mod( grp, &X,   &X,     &T1   ) );
     MBEDTLS_MPI_CHK( mbedtls_mpi_sub_mod( grp, &X,   &X,     &T4   ) );

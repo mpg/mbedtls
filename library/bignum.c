@@ -60,6 +60,10 @@
 #define mbedtls_free       free
 #endif
 
+#if defined(NO_PTR_CALL)
+void dummy_rng( unsigned char *buf, size_t len );
+#endif
+
 #define MPI_VALIDATE_RET( cond )                                       \
     MBEDTLS_INTERNAL_VALIDATE_RET( cond, MBEDTLS_ERR_MPI_BAD_INPUT_DATA )
 #define MPI_VALIDATE( cond )                                           \
@@ -2397,7 +2401,13 @@ int mbedtls_mpi_fill_random( mbedtls_mpi *X, size_t size,
     MBEDTLS_MPI_CHK( mbedtls_mpi_lset( X, 0 ) );
 
     Xp = (unsigned char*) X->p;
+#if !defined(NO_PTR_CALL)
     f_rng( p_rng, Xp + overhead, size );
+#else
+    (void) f_rng;
+    (void) p_rng;
+    dummy_rng( Xp + overhead, size );
+#endif
 
     mpi_bigendian_to_host( X->p, limbs );
 

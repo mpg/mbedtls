@@ -1,0 +1,12 @@
+memset 0
+memcpy 0
+memmove 0
+strlen 0
+strcmp 0
+calloc  32
+free    32
+__aeabi_lmul 16
+__aeabi_uldivmod 16
+__aeabi_uidivmod 16
+__aeabi_uidiv 16
+dummy_rng  384

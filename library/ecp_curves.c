@@ -617,7 +617,7 @@ static int ecp_mod_p192( mbedtls_mpi * );
 static int ecp_mod_p224( mbedtls_mpi * );
 #endif
 #if defined(MBEDTLS_ECP_DP_SECP256R1_ENABLED)
-static int ecp_mod_p256( mbedtls_mpi * );
+int ecp_mod_p256( mbedtls_mpi * );
 #endif
 #if defined(MBEDTLS_ECP_DP_SECP384R1_ENABLED)
 static int ecp_mod_p384( mbedtls_mpi * );
@@ -1074,7 +1074,7 @@ cleanup:
 /*
  * Fast quasi-reduction modulo p256 (FIPS 186-3 D.2.3)
  */
-static int ecp_mod_p256( mbedtls_mpi *N )
+int ecp_mod_p256( mbedtls_mpi *N )
 {
     INIT( 256 );
 

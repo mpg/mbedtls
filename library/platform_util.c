@@ -45,7 +45,7 @@
 /*
  * This implementation should never be optimized out by the compiler
  *
- * This implementation for mbedtls_platform_zeroize() was inspired from Colin
+ * This implementation for mbedtls_platform_zeroize( was inspired from Colin
  * Percival's blog article at:
  *
  * http://www.daemonology.net/blog/2014-09-04-how-to-zero-a-buffer.html
@@ -68,6 +68,7 @@
  * mbedtls_platform_zeroize() to use a suitable implementation for their
  * platform and needs.
  */
+#if !defined(NO_PTR_CALL)
 static void * (* const volatile memset_func)( void *, int, size_t ) = memset;
 
 void mbedtls_platform_zeroize( void *buf, size_t len )
@@ -77,6 +78,14 @@ void mbedtls_platform_zeroize( void *buf, size_t len )
     if( len > 0 )
         memset_func( buf, 0, len );
 }
+#else
+void mbedtls_platform_zeroize( void *buf, size_t len )
+{
+    volatile unsigned char *p = buf;
+    for( size_t i = 0; i < len; i++ )
+        p[i] = 0;
+}
+#endif /* NO_PTR_CALL */
 #endif /* MBEDTLS_PLATFORM_ZEROIZE_ALT */
 
 #if defined(MBEDTLS_HAVE_TIME_DATE) && !defined(MBEDTLS_PLATFORM_GMTIME_R_ALT)
