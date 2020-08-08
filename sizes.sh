@@ -36,10 +36,18 @@ get_size() {
     MBEDTLS='mbedtls_|ecp_|ecdsa_|mpi_|secp256r1|add32|sub32|derive_mpi|memset_func'
     arm-none-eabi-nm --print-size --radix=d ecc.elf |
         awk "/^[0-9]{8} [0-9]{8} . $MBEDTLS/"' {sum += $2} END {print sum}'
+    # Uncomment to also print external dependencies
+    #arm-none-eabi-nm --print-size --radix=d ecc.elf |
+    #    awk "/^[0-9]{8} [0-9]{8} . / && !/ . $MBEDTLS/ \
+    #        "'{print $2, $4; tot += $2} END {print "total: " tot}'
+    #echo ""
 }
 
 for CPU in m0 m4 a5; do
-    printf "$CPU: %5d %5d\n" "$(get_size $CPU small)" "$(get_size $CPU fast)"
+    for CONF in small fast; do
+        printf "$CPU $CONF: "
+        get_size $CPU $CONF
+    done
 done
 
 mv $CONFIG_H.bak $CONFIG_H
