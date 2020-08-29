@@ -4,6 +4,7 @@ set -eu
 
 CONFIG_H=include/mbedtls/config.h
 cp $CONFIG_H $CONFIG_H.bak
+cp config-p256.h $CONFIG_H
 rm -f *.o
 
 # Get the size of the mbed TLS P-256 ECDH-ECDSA implementation for a given
@@ -17,12 +18,11 @@ get_size() {
     CPU=$1
     CONF=$2
 
-    cp config-p256-$CONF.h $CONFIG_H
-
     arm-none-eabi-gcc -Werror -Wall -Wextra -pedantic --std=c99 -Iinclude \
         -Os -fomit-frame-pointer -mthumb -mcpu=cortex-$CPU \
         -c -ffunction-sections -fdata-sections \
-        -DBAREMETAL library/platform_util.c library/platform.c \
+        -DBAREMETAL -DCONFIG_SMALLER=$CONF \
+        library/platform_util.c library/platform.c \
         library/bignum.c library/ecp.c library/ecp_curves.c \
         library/ecdh.c library/ecdsa.c \
         ecc-entry.c
@@ -44,7 +44,7 @@ get_size() {
 }
 
 for CPU in m0 m4 a5; do
-    for CONF in small fast; do
+    for CONF in 0 1 2; do
         printf "$CPU $CONF: "
         get_size $CPU $CONF
     done

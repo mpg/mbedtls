@@ -51,12 +51,16 @@ void dummy_free(void *ptr);
 #define MBEDTLS_ECP_MAX_BITS   256
 #define MBEDTLS_MPI_MAX_SIZE    32  // 256 bits is 32 bytes
 
-/* Don't save RAM at the expense of speed, keep default, see ecp.h */
-//#define MBEDTLS_ECP_WINDOW_SIZE        2
-//#define MBEDTLS_ECP_FIXED_POINT_OPTIM  0
+#if CONFIG_SMALLER > 0
+/* Save RAM at the expense of speed, see ecp.h */
+#define MBEDTLS_ECP_WINDOW_SIZE        2
+#define MBEDTLS_ECP_FIXED_POINT_OPTIM  0
+#endif
 
+#if CONFIG_SMALLER < 2
 /* Expend code size to gain speed */
 #define MBEDTLS_ECP_NIST_OPTIM
+#endif
 
 #include "mbedtls/check_config.h"
 
