@@ -12,7 +12,7 @@ bench_config() {
 
     gcc --std=c99 -Werror -Wall -Wextra -pedantic -Iinclude \
         -Os -ffunction-sections -fdata-sections -Wl,--gc-sections \
-        -DCONFIG_SMALLER=$CONF \
+        -march=native -DCONFIG_SMALLER=$CONF \
         library/platform_util.c library/platform.c \
         library/bignum.c library/ecp.c library/ecp_curves.c \
         library/ecdh.c library/ecdsa.c \

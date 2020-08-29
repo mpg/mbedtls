@@ -12,7 +12,7 @@ show_heap() {
 
     make clean
 
-    CFLAGS="-Os -DBENCHMARK_HEAP -DCONFIG_SMALLER=$CONF"
+    CFLAGS="-Os -march=native -DBENCHMARK_HEAP -DCONFIG_SMALLER=$CONF"
     export CFLAGS
     make lib >/dev/null
     (cd programs && make test/benchmark) >/dev/null

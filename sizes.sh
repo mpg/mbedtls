@@ -43,9 +43,10 @@ get_size() {
     #echo ""
 }
 
-for CPU in m0 m4 a5; do
-    for CONF in 0 1 2; do
-        printf "$CPU $CONF: "
+for CONF in 0 1 2; do
+    echo ""
+    for CPU in m0 m4 a7; do
+        printf "$CONF $CPU: "
         get_size $CPU $CONF
     done
 done

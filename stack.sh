@@ -15,7 +15,7 @@ show_stack () {
     rm -f *.o *.su *.dfinish
 
     arm-none-eabi-gcc -DNO_PTR_CALL -fdump-rtl-dfinish -fstack-usage \
-        -Os -fomit-frame-pointer -mthumb -mcpu=cortex-m0 \
+        -Os -fomit-frame-pointer -mthumb -mcpu=cortex-a7 \
         -DCONFIG_SMALLER=$CONF -I../include -c \
         platform_util.c platform.c \
         bignum.c ecp.c ecp_curves.c \
