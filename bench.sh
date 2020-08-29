@@ -18,6 +18,7 @@ bench_config() {
         library/ecdh.c library/ecdsa.c \
         benchmark.c -o benchmark
 
+    echo "Build complete, running benchmark"
     ./benchmark
 }
 

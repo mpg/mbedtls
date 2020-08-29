@@ -26,7 +26,7 @@ static uint64_t usec(void)
 }
 
 #define SUCCESS     0
-#define TIMES       100
+#define TIMES       20
 #define TIMEIT(N, CODE)                                             \
 do {                                                                \
     if (CODE != SUCCESS)                                            \
@@ -52,7 +52,7 @@ int cmp_u64(const void *a, const void *b) {
 
 int main(void)
 {
-    uint64_t results[4][RUNS];
+    uint64_t results[4][RUNS], total_ms = 0;
     const char * names[4] = {"Keygen", "ECDH", "Sign", "Verify"};
 
     mbedtls_ecp_group p256;
@@ -79,8 +79,11 @@ int main(void)
 
     for (unsigned n = 0; n < 4; n++) {
         qsort(results[n], RUNS, sizeof results[n][0], cmp_u64);
-        printf("%s: %"PRIu64"\n", names[n], results[n][RUNS / 2]);
+        uint64_t median_ms = results[n][RUNS / 2] / 1000;
+        printf("%s: %"PRIu64" ms\n", names[n], median_ms);
+        total_ms += median_ms;
     }
+    printf("%s: %"PRIu64" ms\n", "Total", total_ms);
 
     mbedtls_ecp_group_free(&p256);
     mbedtls_ecp_point_free(&Q);
