@@ -1632,6 +1632,8 @@ int mbedtls_rsa_rsaes_pkcs1_v15_decrypt( mbedtls_rsa_context *ctx,
     if( ret != 0 )
         goto cleanup;
 
+    ANNOTATE_CT_SECRET(buf, sizeof buf);
+
     /* Check and get padding length in constant time and constant
      * memory trace. The first byte must be 0. */
     bad |= buf[0];
@@ -1744,6 +1746,9 @@ int mbedtls_rsa_rsaes_pkcs1_v15_decrypt( mbedtls_rsa_context *ctx,
 
 cleanup:
     mbedtls_platform_zeroize( buf, sizeof( buf ) );
+
+    ANNOTATE_CT_PUBLIC(olen, sizeof(*olen));
+    ANNOTATE_CT_PUBLIC(output, *olen);
 
     return( ret );
 }
