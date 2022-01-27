@@ -1613,7 +1613,9 @@ struct mbedtls_ssl_context
     /*
      * PKI layer
      */
-    int MBEDTLS_PRIVATE(client_auth);                    /*!<  flag for client auth.   */
+#if defined(MBEDTLS_SSL_CLI_C)
+    int MBEDTLS_PRIVATE(client_auth);            /*!< did the server request a certificate? */
+#endif
 
     /*
      * User settings
