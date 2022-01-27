@@ -2129,6 +2129,11 @@ component_build_no_ssl_srv () {
     scripts/config.py full
     scripts/config.py unset MBEDTLS_SSL_SRV_C
     make CC=gcc CFLAGS='-Werror -Wall -Wextra -O1'
+
+    # Ideally ssl-opt.sh would support selecting client-only tests,
+    # but in the meantime this is already something.
+    tests/ssl-opt.sh -f 'openssl server'
+    tests/ssl-opt.sh -f 'gnutls server'
 }
 
 component_build_no_ssl_cli () {
@@ -2136,6 +2141,11 @@ component_build_no_ssl_cli () {
     scripts/config.py full
     scripts/config.py unset MBEDTLS_SSL_CLI_C
     make CC=gcc CFLAGS='-Werror -Wall -Wextra -O1'
+
+    # Ideally ssl-opt.sh would support selecting server-only tests,
+    # but in the meantime this is already something.
+    tests/ssl-opt.sh -f 'openssl client'
+    tests/ssl-opt.sh -f 'gnutls client'
 }
 
 component_build_no_sockets () {
