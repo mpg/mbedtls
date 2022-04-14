@@ -51,6 +51,7 @@ cat << EOF >$CONFIG_H
 #define MBEDTLS_MEMORY_DEBUG
 
 #define MBEDTLS_TIMING_C
+#define MBEDTLS_HAVE_TIME
 
 #define MBEDTLS_BIGNUM_C
 #define MBEDTLS_ECP_C
@@ -82,8 +83,8 @@ cat << EOF >$CONFIG_H
 //#define MBEDTLS_ECP_FIXED_POINT_OPTIM      1
 EOF
 
-for F in 0 1; do
-    for W in 2 3 4; do
+for F in 1; do
+    for W in 4; do
         scripts/config.py set MBEDTLS_ECP_WINDOW_SIZE $W
         scripts/config.py set MBEDTLS_ECP_FIXED_POINT_OPTIM $F
         make benchmark >/dev/null 2>&1
