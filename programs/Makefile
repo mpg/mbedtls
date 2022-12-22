@@ -119,7 +119,7 @@ APPS = \
 	ssl/ssl_context_info \
 	ssl/ssl_fork_server \
 	ssl/ssl_mail_client \
-	ssl/ssl_server \
+	ssl/ssl_server1 \
 	ssl/ssl_server2 \
 	test/benchmark \
 	test/query_compile_time_config \
@@ -350,9 +350,9 @@ ssl/ssl_client2$(EXEXT): ssl/ssl_client2.c $(SSL_TEST_DEPS)
 	echo "  CC    ssl/ssl_client2.c"
 	$(CC) $(LOCAL_CFLAGS) $(CFLAGS) ssl/ssl_client2.c $(SSL_TEST_OBJECTS) $(LOCAL_LDFLAGS) $(LDFLAGS) -o $@
 
-ssl/ssl_server$(EXEXT): ssl/ssl_server.c $(DEP)
-	echo "  CC    ssl/ssl_server.c"
-	$(CC) $(LOCAL_CFLAGS) $(CFLAGS) ssl/ssl_server.c   $(LOCAL_LDFLAGS) $(LDFLAGS) -o $@
+ssl/ssl_server1$(EXEXT): ssl/ssl_server1.c $(DEP)
+	echo "  CC    ssl/ssl_server1.c"
+	$(CC) $(LOCAL_CFLAGS) $(CFLAGS) ssl/ssl_server1.c   $(LOCAL_LDFLAGS) $(LDFLAGS) -o $@
 
 ssl/ssl_server2$(EXEXT): ssl/ssl_server2.c $(SSL_TEST_DEPS)
 	echo "  CC    ssl/ssl_server2.c"
