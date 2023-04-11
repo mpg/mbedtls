@@ -2197,7 +2197,7 @@ component_test_psa_crypto_config_accel_pake() {
 config_psa_crypto_config_all_ec_algs_use_psa () {
     DRIVER_ONLY="$1"
     # start with config full for maximum coverage (also enables USE_PSA)
-    scripts/config.py full
+    scripts/config.py crypto_full
     # enable support for drivers and configuring PSA-only algorithms
     scripts/config.py set MBEDTLS_PSA_CRYPTO_CONFIG
     scripts/config.py set MBEDTLS_PSA_CRYPTO_DRIVERS
@@ -2235,6 +2235,14 @@ component_test_psa_crypto_config_accel_all_ec_algs_use_psa () {
     scripts/config.py -f include/psa/crypto_config.h unset PSA_WANT_ALG_STREAM_CIPHER
     scripts/config.py -f include/psa/crypto_config.h unset PSA_WANT_ALG_ECB_NO_PADDING
 
+    # would re-enable PK
+    scripts/config.py -f include/psa/crypto_config.h unset PSA_WANT_KEY_TYPE_RSA_KEY_PAIR
+    scripts/config.py -f include/psa/crypto_config.h unset PSA_WANT_KEY_TYPE_RSA_PUBLIC_KEY
+    for ALG in $(sed -n 's/^#define \(PSA_WANT_ALG_RSA_[0-9A-Z_a-z]*\).*/\1/p' <"$CRYPTO_CONFIG_H"); do
+        echo $ALG
+        scripts/config.py -f include/psa/crypto_config.h unset $ALG
+    done
+
     # Things we wanted supported in libtestdriver1, but not accelerated in the main library:
     # SHA-1 and all SHA-2 variants, as they are used by ECDSA deterministic.
     loc_extra_list="ALG_SHA_1 ALG_SHA_224 ALG_SHA_256 ALG_SHA_384 ALG_SHA_512"
@@ -2248,12 +2256,18 @@ component_test_psa_crypto_config_accel_all_ec_algs_use_psa () {
 
     # Use the same config as reference, only without built-in EC algs
     config_psa_crypto_config_all_ec_algs_use_psa 1
+    scripts/config.py unset MBEDTLS_ECP_C
+    scripts/config.py unset MBEDTLS_PK_C
+    scripts/config.py unset MBEDTLS_PK_PARSE_C
+    scripts/config.py unset MBEDTLS_PK_WRITE_C
+    scripts/config.py unset MBEDTLS_RSA_C # don't re-enable PK
 
     # Build the library (without ECP_FULL)
     loc_accel_flags="$loc_accel_flags $( echo "$loc_accel_list" | sed 's/[^ ]* */-DMBEDTLS_PSA_ACCEL_&/g' )"
     make CFLAGS="$ASAN_CFLAGS -Werror -I../tests/include -I../tests -I../../tests -DPSA_CRYPTO_DRIVER_TEST -DMBEDTLS_TEST_LIBTESTDRIVER1 $loc_accel_flags" LDFLAGS="-ltestdriver1 $ASAN_CFLAGS" -C tests
 
     # Make sure any built-in EC alg was not re-enabled by accident (additive config)
+    not grep mbedtls_ecp_ library/ecp.o
     not grep mbedtls_ecdsa_ library/ecdsa.o
     not grep mbedtls_ecdh_ library/ecdh.o
     not grep mbedtls_ecjpake_ library/ecjpake.o
