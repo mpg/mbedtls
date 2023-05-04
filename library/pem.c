@@ -488,25 +488,34 @@ int mbedtls_pem_write_buffer(const char *header, const char *footer,
 {
     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
     unsigned char *encode_buf = NULL, *c, *p = buf;
-    size_t len = 0, use_len, add_len = 0;
+    size_t len = 0, use_len;
 
     mbedtls_base64_encode(NULL, 0, &use_len, der_data, der_len);
-    add_len = strlen(header) + strlen(footer) + (((use_len > 2) ? (use_len - 2) : 0) / 64) + 1;
+    // temporary work-around for a bug in base64_encode() where it sometimes
+    // count a nul terminator and sometimes not.
+    use_len = use_len != 0 ? use_len - 1 : 0;
+    /* header + footer + one '\n' per line + final '\0' */
+    size_t nb_lines = (use_len + 63) / 64;
+    size_t add_len = strlen(header) + strlen(footer) + nb_lines + 1;
 
     if (use_len + add_len > buf_len) {
         *olen = use_len + add_len;
         return MBEDTLS_ERR_BASE64_BUFFER_TOO_SMALL;
     }
 
-    if (use_len != 0 &&
-        ((encode_buf = mbedtls_calloc(1, use_len)) == NULL)) {
-        return MBEDTLS_ERR_PEM_ALLOC_FAILED;
-    }
+    if (use_len != 0) {
+        // temporary work-around for a bug in base64_encode()
+        use_len++;
 
-    if ((ret = mbedtls_base64_encode(encode_buf, use_len, &use_len, der_data,
-                                     der_len)) != 0) {
-        mbedtls_free(encode_buf);
-        return ret;
+        if ((encode_buf = mbedtls_calloc(1, use_len)) == NULL) {
+            return MBEDTLS_ERR_PEM_ALLOC_FAILED;
+        }
+
+        if ((ret = mbedtls_base64_encode(encode_buf, use_len, &use_len,
+                                         der_data, der_len)) != 0) {
+            mbedtls_free(encode_buf);
+            return ret;
+        }
     }
 
     memcpy(p, header, strlen(header));
