@@ -2538,8 +2538,6 @@ component_test_psa_crypto_config_accel_ecc_ecp_light_only () {
                     ALG_JPAKE \
                     $(helper_get_psa_keys_list "ECC")"
 
-    echo "$loc_accel_list"
-
     loc_curve_list="$(helper_get_psa_curve_list)"
 
     # Configure
@@ -2573,7 +2571,7 @@ component_test_psa_crypto_config_accel_ecc_ecp_light_only () {
     msg "test suites: MBEDTLS_PSA_CRYPTO_CONFIG with accelerated EC algs + USE_PSA"
     make test
 
-    #msg "ssl-opt: MBEDTLS_PSA_CRYPTO_CONFIG with accelerated EC algs + USE_PSA"
+    msg "ssl-opt: MBEDTLS_PSA_CRYPTO_CONFIG with accelerated EC algs + USE_PSA"
     tests/ssl-opt.sh
 }
 
