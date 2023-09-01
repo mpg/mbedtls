@@ -904,8 +904,8 @@ helper_libtestdriver1_adjust_config() {
 }
 
 # When called with no parameter this function disables all builtin curves.
-# The function optionally accepts 1 parameter with the list of the curves that
-# should be kept enabled.
+# The function optionally accepts 1 parameter with the space-separated list
+# of the curves that should be kept enabled.
 helper_disable_builtin_curves() {
     allowed_list="${1:-}"
     scripts/config.py unset-all "MBEDTLS_ECP_DP_[0-9A-Z_a-z]*_ENABLED"
@@ -928,9 +928,9 @@ helper_get_psa_curve_list () {
 }
 
 # Get the list of uncommented PSA_WANT_KEY_TYPE_xxx_ from CRYPTO_CONFIG_H. This
-# is useful to easily get a list of key symbols accelerate.
+# is useful to easily get a list of key type symbols to accelerate.
 # The function accepts a single argument which is the key type: ECC, DH, RSA.
-helper_get_psa_keys_list() {
+helper_get_psa_key_type_list() {
     KEY_TYPE="$1"
     loc_list=""
     for ITEM in $(sed -n "s/^#define PSA_WANT_\(KEY_TYPE_${KEY_TYPE}_[0-9A-Z_a-z]*\).*/\1/p" <"$CRYPTO_CONFIG_H"); do
@@ -2330,7 +2330,7 @@ component_test_psa_crypto_config_accel_ecdsa () {
 
     # Algorithms and key types to accelerate
     loc_accel_list="ALG_ECDSA ALG_DETERMINISTIC_ECDSA \
-                    $(helper_get_psa_keys_list "ECC")"
+                    $(helper_get_psa_key_type_list "ECC")"
 
     loc_curve_list="$(helper_get_psa_curve_list)"
 
@@ -2373,7 +2373,7 @@ component_test_psa_crypto_config_accel_ecdh () {
 
     # Algorithms and key types to accelerate
     loc_accel_list="ALG_ECDH \
-                    $(helper_get_psa_keys_list "ECC")"
+                    $(helper_get_psa_key_type_list "ECC")"
 
     loc_curve_list="$(helper_get_psa_curve_list)"
 
@@ -2415,7 +2415,7 @@ component_test_psa_crypto_config_accel_ffdh () {
 
     # Algorithms and key types to accelerate
     loc_accel_list="ALG_FFDH \
-                    $(helper_get_psa_keys_list "DH")"
+                    $(helper_get_psa_key_type_list "DH")"
 
     # Configure
     # ---------
@@ -2536,7 +2536,7 @@ component_test_psa_crypto_config_accel_ecc_ecp_light_only () {
     loc_accel_list="ALG_ECDSA ALG_DETERMINISTIC_ECDSA \
                     ALG_ECDH \
                     ALG_JPAKE \
-                    $(helper_get_psa_keys_list "ECC")"
+                    $(helper_get_psa_key_type_list "ECC")"
 
     loc_curve_list="$(helper_get_psa_curve_list)"
 
@@ -2546,7 +2546,7 @@ component_test_psa_crypto_config_accel_ecc_ecp_light_only () {
     # Use the same config as reference, only without built-in EC algs
     config_psa_crypto_config_ecp_ligh_only 1
 
-    # Do not disable builtin curves because that support is rquired for:
+    # Do not disable builtin curves because that support is required for:
     # - MBEDTLS_PK_PARSE_EC_EXTENDED
     # - MBEDTLS_PK_PARSE_EC_COMPRESSED
 
@@ -2640,7 +2640,7 @@ component_test_psa_crypto_config_accel_ecc_no_ecp_at_all () {
     loc_accel_list="ALG_ECDSA ALG_DETERMINISTIC_ECDSA \
                     ALG_ECDH \
                     ALG_JPAKE \
-                    $(helper_get_psa_keys_list "ECC")"
+                    $(helper_get_psa_key_type_list "ECC")"
 
     loc_curve_list="$(helper_get_psa_curve_list)"
 
@@ -2767,7 +2767,7 @@ component_test_psa_crypto_config_accel_ecc_no_bignum () {
     loc_accel_list="ALG_ECDSA ALG_DETERMINISTIC_ECDSA \
                     ALG_ECDH \
                     ALG_JPAKE \
-                    $(helper_get_psa_keys_list "ECC")"
+                    $(helper_get_psa_key_type_list "ECC")"
 
     loc_curve_list="$(helper_get_psa_curve_list)"
 
@@ -2844,7 +2844,7 @@ psa_crypto_config_accel_all_curves_except_one () {
     loc_accel_list="ALG_ECDH \
                     ALG_ECDSA ALG_DETERMINISTIC_ECDSA \
                     ALG_JPAKE \
-                    $(helper_get_psa_keys_list "ECC")"
+                    $(helper_get_psa_key_type_list "ECC")"
 
     # Configure
     # ---------
