@@ -105,23 +105,21 @@ def analyze_driver_vs_reference(results: Results, outcomes,
     - only some specific test inside a test suite, for which the corresponding
       output string is provided
     """
-    available = check_test_cases.collect_available_test_cases()
-
-    for key in available:
-        # Continue if test was not executed by any component
-        hits = outcomes[key].hits() if key in outcomes else 0
-        if hits == 0:
-            continue
-
+    seen_reference_passing = False
+    for key in outcomes:
         # key is like "test_suite_foo.bar;Description of test case"
         (full_test_suite, test_string) = key.split(';')
         test_suite = full_test_suite.split('.')[0] # retrieve main part of test suite name
-        # Skip fully-ignored test suites
+
+        # Immediately skip fully-ignored test suites
         if test_suite in ignored_suites or full_test_suite in ignored_suites:
             continue
-        # Skip ignored test cases inside test suites
+
+        # For ignored test cases inside test suites, just remember and:
+        # don't issue an error if they're skipped with drivers,
+        # but issue an error if they're not (means we have a bad entry).
+        ignored = False
         if full_test_suite in ignored_tests:
-            ignored = False
             for str_or_re in ignored_tests[full_test_suite]:
                 if isinstance(str_or_re, re.Pattern):
                     if str_or_re.fullmatch(test_string):
@@ -129,8 +127,6 @@ def analyze_driver_vs_reference(results: Results, outcomes,
                 else:
                     if str_or_re == test_string:
                         ignored = True
-            if ignored:
-                continue
 
         # Search for tests that run in reference component and not in driver component
         driver_test_passed = False
@@ -140,8 +136,16 @@ def analyze_driver_vs_reference(results: Results, outcomes,
                 driver_test_passed = True
             if component_ref in entry:
                 reference_test_passed = True
+                seen_reference_passing = True
         if(reference_test_passed and not driver_test_passed):
-            results.error("Did not pass with driver: {}", key)
+            if not ignored:
+                results.error("PASS -> SKIP/FAIL: {}", key)
+        else:
+            if ignored:
+                results.error("uselessly ignored: {}", key)
+
+    if not seen_reference_passing:
+        results.error("no passing test in reference component: bad outcome file?")
 
 def analyze_outcomes(results: Results, outcomes, args):
     """Run all analyses on the given outcome collection."""
