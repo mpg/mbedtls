@@ -350,8 +350,8 @@ KNOWN_TASKS = {
                     # consequence compressed points are supported in the reference
                     # component but not in the accelerated one, so they should be skipped
                     # while checking driver's coverage.
-                    re.compile('Parse EC Key .*compressed\)'),
-                    re.compile('Parse Public EC Key .*compressed\)'),
+                    re.compile(r'Parse EC Key .*compressed\)'),
+                    re.compile(r'Parse Public EC Key .*compressed\)'),
                 ],
                 # See ecp_light_only
                 'test_suite_ssl': [
@@ -378,8 +378,8 @@ KNOWN_TASKS = {
                 ],
                 # See no_ecp_at_all
                 'test_suite_pkparse': [
-                    re.compile('Parse EC Key .*compressed\)'),
-                    re.compile('Parse Public EC Key .*compressed\)'),
+                    re.compile(r'Parse EC Key .*compressed\)'),
+                    re.compile(r'Parse Public EC Key .*compressed\)'),
                 ],
                 'test_suite_asn1parse': [
                     'INTEGER too large for mpi',
@@ -415,8 +415,8 @@ KNOWN_TASKS = {
                 ],
                 # See no_ecp_at_all
                 'test_suite_pkparse': [
-                    re.compile('Parse EC Key .*compressed\)'),
-                    re.compile('Parse Public EC Key .*compressed\)'),
+                    re.compile(r'Parse EC Key .*compressed\)'),
+                    re.compile(r'Parse Public EC Key .*compressed\)'),
                 ],
                 'test_suite_asn1parse': [
                     'INTEGER too large for mpi',
