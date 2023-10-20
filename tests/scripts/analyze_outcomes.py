@@ -95,6 +95,19 @@ def analyze_coverage(results, outcomes, allow_list, full_coverage):
             else:
                 results.warning('Allow listed test case was executed: {}', key)
 
+def name_matches_pattern(name, str_or_re):
+    """Check if name matches a pattern, that may be a string or regex.
+    - If the pattern is a string, name must be equal to match.
+    - If the pattern is a regex, name must fully match.
+    """
+    if isinstance(str_or_re, re.Pattern):
+        if str_or_re.fullmatch(name):
+            return True
+    else:
+        if str_or_re == name:
+            return True
+    return False
+
 def analyze_driver_vs_reference(results: Results, outcomes,
                                 component_ref, component_driver,
                                 ignored_suites, ignored_tests=None):
@@ -121,12 +134,8 @@ def analyze_driver_vs_reference(results: Results, outcomes,
         ignored = False
         if full_test_suite in ignored_tests:
             for str_or_re in ignored_tests[full_test_suite]:
-                if isinstance(str_or_re, re.Pattern):
-                    if str_or_re.fullmatch(test_string):
-                        ignored = True
-                else:
-                    if str_or_re == test_string:
-                        ignored = True
+                if name_matches_pattern(test_string, str_or_re):
+                    ignored = True
 
         # Search for tests that run in reference component and not in driver component
         driver_test_passed = False
