@@ -104,6 +104,11 @@ import xml.etree.ElementTree as ET
 import framework_scripts_path # pylint: disable=unused-import
 from mbedtls_framework import build_tree
 
+sys.path.append(os.path.join(os.path.dirname(__file__),
+                             os.path.pardir,
+                             'tests', 'scripts'))
+from check_names import CodeParser
+
 
 class AbiChecker:
     """API and ABI checker."""
@@ -119,7 +124,6 @@ class AbiChecker:
         configuration.check_abi: if true, compare ABIs
         configuration.check_api: if true, compare APIs
         configuration.check_storage: if true, compare storage format tests
-        configuration.skip_file: path to file containing symbols and types to skip
         """
         self.repo_path = "."
         self.log = None
@@ -131,7 +135,7 @@ class AbiChecker:
                                           self.keep_all_reports)
         self.old_version = old_version
         self.new_version = new_version
-        self.skip_file = configuration.skip_file
+        self.skip_file = None  # see _generate_skip_file()
         self.check_abi = configuration.check_abi
         self.check_api = configuration.check_api
         if self.check_abi != self.check_api:
@@ -398,9 +402,28 @@ class AbiChecker:
         if self.check_abi:
             self._build_shared_libraries(git_worktree_path, version)
             self._get_abi_dumps_from_shared_libraries(version)
+        if version == self.old_version and self.skip_file is None:
+            self._generate_skip_file(git_worktree_path)
         if self.check_storage_tests:
             self._get_storage_format_tests(version, git_worktree_path)
         self._cleanup_worktree(git_worktree_path)
+
+    def _generate_skip_file(self, path):
+        """Generate the skip file. Assumes old revision is checked out."""
+        # Internal identifiers - declared in internal headers
+        name_check = CodeParser(logging.getLogger())
+        result = name_check.parse_identifiers([
+            path + "/include/mbedtls/*_internal.h",
+            path + "/library/*.h",
+            path + "/tf-psa-crypto/core/*.h",
+            path + "/tf-psa-crypto/drivers/builtin/src/*.h"
+        ])[0]
+        identifiers = sorted("{}\n".format(match.name) for match in result)
+
+        fp = tempfile.NamedTemporaryFile(delete=False, mode='w', encoding='utf-8')
+        fp.writelines(identifiers)
+        fp.close()
+        self.skip_file = fp.name
 
     def _remove_children_with_tag(self, parent, tag):
         children = parent.getchildren()
@@ -430,10 +453,9 @@ class AbiChecker:
             "-new", self.new_version.abi_dumps[mbed_module],
             "-strict",
             "-report-path", output_path,
+            "-skip-symbols", self.skip_file,
+            "-skip-types", self.skip_file,
         ]
-        if self.skip_file:
-            abi_compliance_command += ["-skip-symbols", self.skip_file,
-                                       "-skip-types", self.skip_file]
         if self.brief:
             abi_compliance_command += ["-report-format", "xml",
                                        "-stdout"]
@@ -449,6 +471,7 @@ class AbiChecker:
             )
         )
         try:
+            print(self._abi_compliance_command(mbed_module, output_path))
             subprocess.check_output(
                 self._abi_compliance_command(mbed_module, output_path),
                 stderr=subprocess.STDOUT
@@ -600,12 +623,6 @@ def run_main():
             help="repository for new crypto submodule."
         )
         parser.add_argument(
-            "-s", "--skip-file", type=str,
-            help=("path to file containing symbols and types to skip "
-                  "(typically \"-s identifiers\" after running "
-                  "\"tests/scripts/list-identifiers.sh --internal\")")
-        )
-        parser.add_argument(
             "--check-abi",
             action='store_true', default=True,
             help="Perform ABI comparison (default: yes)"
@@ -661,7 +678,6 @@ def run_main():
             check_abi=abi_args.check_abi,
             check_api=abi_args.check_api,
             check_storage=abi_args.check_storage,
-            skip_file=abi_args.skip_file
         )
         abi_check = AbiChecker(old_version, new_version, configuration)
         return_code = abi_check.check_for_abi_changes()
